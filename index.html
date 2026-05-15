@@ -1,381 +1,220 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>real friends</title>
-  <meta name="description" content="Say the thing you've been sitting on. $1. Anonymous." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
-  <script src="https://js.stripe.com/v3/"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    :root {
-      --cream: #f6f3ed;
-      --white: #ffffff;
-      --black: #111010;
-      --gray: #6b6560;
-      --gray-light: #afa79d;
-      --border: rgba(17,16,16,0.11);
-      --border-strong: rgba(17,16,16,0.22);
-      --serif: 'DM Serif Display', Georgia, serif;
-      --sans: 'DM Sans', system-ui, sans-serif;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
-    html { background: var(--cream); color: var(--black); font-family: var(--sans); font-size: 16px; -webkit-font-smoothing: antialiased; }
-    body { min-height: 100vh; min-height: -webkit-fill-available; overscroll-behavior: none; }
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const twilio = require("twilio")(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+const sgMail = require("@sendgrid/mail");
+const { v4: uuidv4 } = require("uuid");
+const Database = require("better-sqlite3");
+const path = require("path");
 
-    /* SCREENS */
-    .screen { display: none; min-height: 100vh; min-height: -webkit-fill-available; flex-direction: column; }
-    .screen.active { display: flex; }
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    /* ===== SCREEN 1: HOME ===== */
-    .home-inner { display: flex; flex-direction: column; flex: 1; padding: calc(var(--safe-top) + 52px) 22px calc(var(--safe-bottom) + 32px); }
+const app = express();
+const db = new Database(path.join(__dirname, "realfriends.db"));
 
-    .logo { font-family: var(--serif); font-size: 15px; letter-spacing: -0.01em; color: var(--black); margin-bottom: 40px; }
-    .logo em { font-style: italic; color: var(--gray); }
+// ---------- DB setup ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    message_key TEXT NOT NULL,
+    recipient_type TEXT NOT NULL,
+    recipient_value TEXT NOT NULL,
+    payment_intent_id TEXT UNIQUE,
+    paid INTEGER DEFAULT 0,
+    delivered INTEGER DEFAULT 0,
+    deliver_at INTEGER,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+`);
 
-    .home-headline { font-family: var(--serif); font-size: 44px; line-height: 1.0; letter-spacing: -0.025em; color: var(--black); margin-bottom: 14px; }
-    .home-headline em { font-style: italic; }
-    .home-sub { font-family: var(--sans); font-size: 15px; font-weight: 300; color: var(--gray); line-height: 1.6; margin-bottom: 36px; }
+// ---------- The 3 messages ----------
+const MESSAGES = {
+  boyfriend: {
+    id: "boyfriend",
+    shortTitle: "I don't like your boyfriend.",
+    fullText: "I don't like your boyfriend. I've been holding this in because I didn't want to make things weird — but I care about you too much to keep pretending everything's fine.",
+  },
+  girlfriend: {
+    id: "girlfriend",
+    shortTitle: "I don't like your girlfriend.",
+    fullText: "I don't like your girlfriend. I've been holding this in because I didn't want to make things weird — but I care about you too much to keep pretending everything's fine.",
+  },
+  talking: {
+    id: "talking",
+    shortTitle: "Someone's talking behind your back.",
+    fullText: "Someone's talking behind your back. I don't want to say who, but I'd want to know if it were me. You deserve to know who's really in your corner.",
+  },
+  wants: {
+    id: "wants",
+    shortTitle: "Someone wants you. Badly.",
+    fullText: "Someone wants you. Badly. They're just too scared to say it. Thought you should know.",
+  },
+};
 
-    .msg-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: auto; }
+app.use(cors({ origin: ['https://realfriends.us', 'https://www.realfriends.us', 'http://localhost:4000'] }));
 
-    .msg-card {
-      background: var(--white); border: 1px solid var(--border); border-radius: 16px;
-      padding: 20px 20px 18px; cursor: pointer;
-      display: flex; align-items: center; justify-content: space-between; gap: 14px;
-      transition: background 0.12s, border-color 0.12s;
-      -webkit-user-select: none; user-select: none;
-      min-height: 72px;
-    }
-    .msg-card:active { background: #f0ede6; border-color: var(--border-strong); }
-
-    .msg-left { display: flex; flex-direction: column; gap: 4px; }
-    .msg-num { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gray-light); }
-    .msg-text { font-family: var(--serif); font-size: 20px; font-style: italic; line-height: 1.2; color: var(--black); }
-    .msg-chevron { width: 28px; height: 28px; border-radius: 50%; background: var(--cream); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; color: var(--gray); }
-
-    .home-footer { margin-top: 28px; font-family: var(--sans); font-size: 12px; font-weight: 300; color: var(--gray-light); text-align: center; line-height: 1.6; }
-
-    /* ===== STEP SCREENS ===== */
-    .step-inner { display: flex; flex-direction: column; flex: 1; padding: calc(var(--safe-top) + 16px) 22px calc(var(--safe-bottom) + 32px); }
-
-    .step-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
-    .back-btn { font-family: var(--sans); font-size: 15px; font-weight: 400; color: var(--gray); background: none; border: none; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 4px; }
-    .step-dots { display: flex; gap: 5px; }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
-    .dot.active { background: var(--black); }
-
-    .step-eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gray-light); margin-bottom: 10px; }
-    .step-h { font-family: var(--serif); font-size: 36px; line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 8px; }
-    .step-h em { font-style: italic; }
-    .step-sub { font-family: var(--sans); font-size: 14px; font-weight: 300; color: var(--gray); line-height: 1.65; margin-bottom: 28px; }
-
-    .selected-pill { display: flex; align-items: center; gap: 10px; background: var(--white); border: 1px solid var(--border); border-radius: 100px; padding: 11px 16px; margin-bottom: 28px; }
-    .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--black); flex-shrink: 0; }
-    .pill-text { font-family: var(--serif); font-size: 15px; font-style: italic; color: var(--black); line-height: 1.3; }
-
-    .toggle-row { display: flex; gap: 8px; margin-bottom: 16px; }
-    .type-btn { padding: 10px 22px; border-radius: 100px; border: 1.5px solid var(--border-strong); font-family: var(--sans); font-size: 14px; font-weight: 400; cursor: pointer; background: none; color: var(--gray); transition: all 0.14s; }
-    .type-btn.active { background: var(--black); color: white; border-color: var(--black); }
-
-    .field-input { width: 100%; padding: 17px 18px; font-family: var(--sans); font-size: 17px; font-weight: 300; border: 1.5px solid var(--border-strong); border-radius: 14px; background: var(--white); color: var(--black); outline: none; transition: border-color 0.15s; appearance: none; -webkit-appearance: none; }
-    .field-input:focus { border-color: var(--black); }
-    .field-input::placeholder { color: var(--gray-light); }
-    .field-error { font-family: var(--sans); font-size: 13px; color: #b83232; min-height: 22px; margin-top: 8px; margin-bottom: 4px; }
-
-    /* CONFIRM */
-    .confirm-card { background: var(--white); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; margin-bottom: 24px; }
-    .confirm-row { padding: 16px 20px; border-bottom: 1px solid var(--border); }
-    .confirm-row:last-child { border-bottom: none; }
-    .confirm-label { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gray-light); margin-bottom: 4px; }
-    .confirm-value { font-family: var(--serif); font-size: 17px; font-style: italic; color: var(--black); line-height: 1.3; }
-    .confirm-value.plain { font-family: var(--sans); font-size: 14px; font-style: normal; font-weight: 300; color: var(--gray); }
-
-    #card-element { padding: 17px 18px; border: 1.5px solid var(--border-strong); border-radius: 14px; background: var(--white); margin-bottom: 8px; }
-    #card-errors { font-family: var(--sans); font-size: 13px; color: #b83232; min-height: 20px; margin-bottom: 12px; }
-
-    /* BUTTONS */
-    .btn-primary { width: 100%; padding: 18px; background: var(--black); color: white; border: none; border-radius: 14px; font-family: var(--sans); font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; margin-bottom: 12px; letter-spacing: 0.01em; }
-    .btn-primary:active { opacity: 0.8; }
-    .btn-primary:disabled { opacity: 0.35; }
-    .btn-secondary { width: 100%; padding: 16px; background: none; border: none; font-family: var(--sans); font-size: 14px; font-weight: 300; color: var(--gray); cursor: pointer; }
-
-    /* SUCCESS */
-    .success-inner { display: flex; flex-direction: column; flex: 1; padding: calc(var(--safe-top) + 52px) 22px calc(var(--safe-bottom) + 48px); }
-    .success-check { font-size: 28px; margin-bottom: 24px; }
-    .success-h { font-family: var(--serif); font-size: 56px; line-height: 0.95; letter-spacing: -0.03em; margin-bottom: 22px; }
-    .success-h em { font-style: italic; }
-    .success-body { font-family: var(--sans); font-size: 15px; font-weight: 300; color: var(--gray); line-height: 1.7; margin-bottom: auto; max-width: 300px; }
-    .success-btn-wrap { margin-top: 48px; }
-
-    /* REVEAL */
-    .reveal-screen { display: none; min-height: 100vh; background: var(--black); flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: calc(var(--safe-top) + 48px) 28px calc(var(--safe-bottom) + 48px); }
-    .reveal-screen.active { display: flex; }
-    .reveal-eyebrow { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.28); margin-bottom: 44px; }
-    .reveal-msg { font-family: var(--serif); font-size: 30px; font-style: italic; line-height: 1.5; color: white; margin-bottom: 64px; }
-    .reveal-rule { width: 1px; height: 44px; background: rgba(255,255,255,0.14); margin: 0 auto 44px; }
-    .reveal-cta { font-family: var(--sans); font-size: 14px; font-weight: 300; color: rgba(255,255,255,0.38); line-height: 1.65; margin-bottom: 24px; max-width: 260px; }
-    .btn-reveal { padding: 17px 40px; background: white; color: var(--black); border: none; border-radius: 14px; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; }
-
-    /* ERROR */
-    .error-screen { display: none; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 60px 28px; }
-    .error-screen.active { display: flex; }
-  </style>
-</head>
-<body>
-
-<!-- ===== HOME ===== -->
-<div class="screen active" id="screen-choose">
-  <div class="home-inner">
-    <div class="logo">real <em>friends</em></div>
-
-    <h1 class="home-headline">The truth<br>you've been<br><em>sitting on.</em></h1>
-    <p class="home-sub">Pick a message. Enter their number. Pay $1 so it actually means something. They'll never know it was you.</p>
-
-    <div class="msg-list">
-      <div class="msg-card" onclick="selectMessage('boyfriend', &quot;I don't like your boyfriend.&quot;)">
-        <div class="msg-left">
-          <div class="msg-num">01</div>
-          <div class="msg-text">I don't like your boyfriend.</div>
-        </div>
-        <div class="msg-chevron">›</div>
-      </div>
-      <div class="msg-card" onclick="selectMessage('girlfriend', &quot;I don't like your girlfriend.&quot;)">
-        <div class="msg-left">
-          <div class="msg-num">02</div>
-          <div class="msg-text">I don't like your girlfriend.</div>
-        </div>
-        <div class="msg-chevron">›</div>
-      </div>
-      <div class="msg-card" onclick="selectMessage('talking', &quot;Someone's talking behind your back.&quot;)">
-        <div class="msg-left">
-          <div class="msg-num">03</div>
-          <div class="msg-text">Someone's talking behind your back.</div>
-        </div>
-        <div class="msg-chevron">›</div>
-      </div>
-      <div class="msg-card" onclick="selectMessage('wants', &quot;Someone wants you. Badly.&quot;)">
-        <div class="msg-left">
-          <div class="msg-num">04</div>
-          <div class="msg-text">Someone wants you. Badly.</div>
-        </div>
-        <div class="msg-chevron">›</div>
-      </div>
-    </div>
-
-    <div class="home-footer">anonymous · within 15 min · $1 · realfriends.us</div>
-  </div>
-</div>
-
-<!-- ===== STEP 1: RECIPIENT ===== -->
-<div class="screen" id="screen-recipient">
-  <div class="step-inner">
-    <div class="step-nav">
-      <button class="back-btn" onclick="goTo('screen-choose')">← Back</button>
-      <div class="step-dots"><div class="dot active"></div><div class="dot"></div></div>
-    </div>
-
-    <div class="step-eyebrow">Step 1 of 2</div>
-    <h2 class="step-h">Who needs<br>to <em>hear this?</em></h2>
-    <p class="step-sub">They won't know it's you. They'll just know someone meant it.</p>
-
-    <div class="selected-pill">
-      <div class="pill-dot"></div>
-      <div class="pill-text" id="recipient-msg-display"></div>
-    </div>
-
-    <div class="toggle-row">
-      <button class="type-btn active" id="toggle-phone" onclick="setRecipientType('phone')">Phone</button>
-      <button class="type-btn" id="toggle-email" onclick="setRecipientType('email')">Email</button>
-    </div>
-
-    <input type="tel" id="recipient-input" class="field-input" placeholder="+1 (555) 000-0000" autocomplete="off" />
-    <div class="field-error" id="error-recipient"></div>
-
-    <div style="margin-top: auto; padding-top: 32px;">
-      <button class="btn-primary" onclick="goToConfirm()">Continue</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== STEP 2: PAY ===== -->
-<div class="screen" id="screen-confirm">
-  <div class="step-inner">
-    <div class="step-nav">
-      <button class="back-btn" onclick="goTo('screen-recipient')">← Back</button>
-      <div class="step-dots"><div class="dot"></div><div class="dot active"></div></div>
-    </div>
-
-    <div class="step-eyebrow">Step 2 of 2</div>
-    <h2 class="step-h">$1 to send<br><em>the truth.</em></h2>
-    <p class="step-sub">Free would make this spam. $1 keeps it real.</p>
-
-    <div class="confirm-card">
-      <div class="confirm-row">
-        <div class="confirm-label">Sending to</div>
-        <div class="confirm-value plain" id="confirm-recipient-display"></div>
-      </div>
-      <div class="confirm-row">
-        <div class="confirm-label">Message</div>
-        <div class="confirm-value" id="confirm-msg-display"></div>
-      </div>
-      <div class="confirm-row">
-        <div class="confirm-label">Cost</div>
-        <div class="confirm-value plain">$1.00 · one time · anonymous</div>
-      </div>
-    </div>
-
-    <div id="card-element"></div>
-    <div id="card-errors"></div>
-
-    <button class="btn-primary" id="btn-pay" onclick="submitPayment()">Pay $1 & Send it</button>
-    <p style="font-family:var(--sans);font-size:11px;font-weight:300;color:var(--gray-light);text-align:center;margin-top:4px;">secured by Stripe · we never store card details</p>
-  </div>
-</div>
-
-<!-- ===== SUCCESS ===== -->
-<div class="screen" id="screen-success">
-  <div class="success-inner">
-    <div class="success-check">✓</div>
-    <h2 class="success-h">It's on<br><em>its way.</em></h2>
-    <p class="success-body">They'll get it within 15 minutes. No sender. No explanation. Just the thing you needed them to know.</p>
-    <div class="success-btn-wrap">
-      <button class="btn-primary" onclick="resetAndStart()">Send another</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== REVEAL ===== -->
-<div class="reveal-screen" id="screen-reveal">
-  <p class="reveal-eyebrow">someone who knows you has something to say</p>
-  <div class="reveal-msg" id="reveal-msg-text">Loading...</div>
-  <div class="reveal-rule"></div>
-  <p class="reveal-cta">Have something to get off your chest? It costs $1. It might mean everything.</p>
-  <button class="btn-reveal" onclick="showMain()">Send something real</button>
-</div>
-
-<!-- ===== ERROR ===== -->
-<div class="error-screen" id="screen-error">
-  <div class="logo" style="margin-bottom:32px;">real <em style="font-style:italic;color:#6b6560;">friends</em></div>
-  <h2 class="step-h" style="margin-bottom:12px;text-align:center;">Couldn't find<br><em>that link.</em></h2>
-  <p class="step-sub" style="text-align:center;margin-bottom:32px;">It may have expired or been mistyped.</p>
-  <button class="btn-primary" style="max-width:260px;" onclick="showMain()">Send your own</button>
-</div>
-
-<script>
-  const API = 'https://api.realfriends.us';
-  const stripe = Stripe('pk_live_51TBnfY9stkAL9xb5FD4aol1slcGrIHZxCm9rZucFNYPc0aw6FpzwKelTtPYTZB8YSUn7m8dUkDOVWs4WrAZwxheV00fWAUYIvV');
-  const elements = stripe.elements();
-  const cardElement = elements.create('card', {
-    style: {
-      base: { fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: '17px', fontWeight: '300', color: '#111010', '::placeholder': { color: '#afa79d' } },
-      invalid: { color: '#b83232' }
-    }
-  });
-
-  let selectedKey = null, selectedText = null, recipientType = 'phone', clientSecret = null, cardMounted = false;
-
-  function goTo(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const el = document.getElementById(id);
-    if (el) el.classList.add('active');
-    window.scrollTo(0, 0);
-  }
-
-  function selectMessage(key, text) {
-    selectedKey = key; selectedText = text;
-    document.getElementById('recipient-msg-display').textContent = text;
-    document.getElementById('confirm-msg-display').textContent = text;
-    goTo('screen-recipient');
-  }
-
-  function setRecipientType(type) {
-    recipientType = type;
-    const input = document.getElementById('recipient-input');
-    document.getElementById('toggle-phone').classList.toggle('active', type === 'phone');
-    document.getElementById('toggle-email').classList.toggle('active', type === 'email');
-    input.type = type === 'phone' ? 'tel' : 'email';
-    input.placeholder = type === 'phone' ? '+1 (555) 000-0000' : 'friend@example.com';
-    input.value = '';
-    document.getElementById('error-recipient').textContent = '';
-  }
-
-  async function goToConfirm() {
-    const value = document.getElementById('recipient-input').value.trim();
-    const errEl = document.getElementById('error-recipient');
-    errEl.textContent = '';
-    if (!value) { errEl.textContent = recipientType === 'phone' ? 'Enter a phone number.' : 'Enter an email address.'; return; }
-    if (recipientType === 'email' && !value.includes('@')) { errEl.textContent = "That doesn't look like a valid email."; return; }
-
-    const btn = document.querySelector('#screen-recipient .btn-primary');
-    btn.textContent = 'Setting up...'; btn.disabled = true;
-
+// Webhook needs raw body - must be registered BEFORE express.json()
+app.post(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    let event;
     try {
-      const res = await fetch(`${API}/api/create-payment-intent`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageKey: selectedKey, recipientType, recipientValue: value })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      clientSecret = data.clientSecret;
-      document.getElementById('confirm-recipient-display').textContent = value;
-      goTo('screen-confirm');
-      if (!cardMounted) {
-        cardElement.mount('#card-element');
-        cardElement.on('change', e => { document.getElementById('card-errors').textContent = e.error ? e.error.message : ''; });
-        cardMounted = true;
-      }
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
     } catch (err) {
-      errEl.textContent = err.message || 'Something went wrong. Try again.';
-    } finally {
-      btn.textContent = 'Continue'; btn.disabled = false;
+      console.error('Webhook signature error:', err.message);
+      return res.status(400).send(`Webhook error: ${err.message}`);
+    }
+
+    if (event.type === "payment_intent.succeeded") {
+      const pi = event.data.object;
+      db.prepare(`UPDATE messages SET paid = 1 WHERE payment_intent_id = ?`).run(pi.id);
+      console.log(`Payment confirmed for PI: ${pi.id}`);
+    }
+
+    res.json({ received: true });
+  }
+);
+
+app.use(express.json());
+
+// ---------- Create Stripe checkout ----------
+app.post("/api/create-payment-intent", async (req, res) => {
+  const { messageKey, recipientType, recipientValue } = req.body;
+
+  if (!MESSAGES[messageKey]) return res.status(400).json({ error: "Invalid message" });
+  if (!["phone", "email"].includes(recipientType))
+    return res.status(400).json({ error: "Invalid recipient type" });
+  if (!recipientValue) return res.status(400).json({ error: "Recipient required" });
+
+  const pendingId = uuidv4();
+
+  // Random delay: 1 min to 4 hours (in seconds from now)
+  const minDelay = 60;
+  const maxDelay = 15 * 60; // 15 minutes max
+  const delaySeconds = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+  const deliverAt = Math.floor(Date.now() / 1000) + delaySeconds;
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: 100, // $1.00
+      currency: "usd",
+      metadata: {
+        pendingId,
+        messageKey,
+        recipientType,
+        recipientValue,
+      },
+    });
+
+    db.prepare(
+      `INSERT INTO messages (id, message_key, recipient_type, recipient_value, payment_intent_id, deliver_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(pendingId, messageKey, recipientType, recipientValue, paymentIntent.id, deliverAt);
+
+    res.json({ clientSecret: paymentIntent.client_secret, pendingId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Payment setup failed" });
+  }
+});
+
+// ---------- Confirm payment (called from frontend after Stripe confirms) ----------
+app.post("/api/confirm-payment", async (req, res) => {
+  const { paymentIntentId } = req.body;
+  if (!paymentIntentId) return res.status(400).json({ error: "Missing paymentIntentId" });
+
+  try {
+    // Verify with Stripe directly
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (pi.status !== "succeeded") {
+      return res.status(400).json({ error: "Payment not completed" });
+    }
+
+    db.prepare(`UPDATE messages SET paid = 1 WHERE payment_intent_id = ?`).run(paymentIntentId);
+    console.log(`Payment confirmed via client for PI: ${paymentIntentId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Confirm payment error:", err.message);
+    res.status(500).json({ error: "Could not confirm payment" });
+  }
+});
+
+// ---------- View a message (receiver opens link) ----------
+app.get("/api/message/:id", (req, res) => {
+  const row = db
+    .prepare(`SELECT * FROM messages WHERE id = ?`)
+    .get(req.params.id);
+
+  if (!row) return res.status(404).json({ error: "Message not found" });
+  if (!row.paid) return res.status(402).json({ error: "Payment pending" });
+
+  const msg = MESSAGES[row.message_key];
+  res.json({
+    messageKey: row.message_key,
+    shortTitle: msg.shortTitle,
+    fullText: msg.fullText,
+    emoji: msg.emoji,
+  });
+});
+
+// ---------- Background delivery job ----------
+async function deliverPendingMessages() {
+  const now = Math.floor(Date.now() / 1000);
+  const rows = db
+    .prepare(
+      `SELECT * FROM messages WHERE paid = 1 AND delivered = 0 AND deliver_at <= ?`
+    )
+    .all(now);
+
+  for (const row of rows) {
+    const linkUrl = `${process.env.FRONTEND_URL}/m/${row.id}`;
+    const smsBody = `No, this isn't spam. One of your friends just has something real to say to you: ${linkUrl}`;
+    const emailSubject = "a real friend has something to say";
+    const emailText = `No, this isn't spam.\n\nOne of your friends just has something real to say to you:\n\n${linkUrl}`;
+
+    try {
+      if (row.recipient_type === "phone") {
+        await twilio.messages.create({
+          body: smsBody,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: row.recipient_value,
+        });
+      } else {
+        await sgMail.send({
+          to: row.recipient_value,
+          from: { email: process.env.FROM_EMAIL, name: "real friends" },
+          subject: emailSubject,
+          text: emailText,
+          html: `<p style="font-family:Georgia,serif;font-size:18px;line-height:1.6;color:#1a1a1a;max-width:480px;margin:60px auto;">
+            No, this isn't spam.<br><br>
+            One of your friends just has something real to say to you:<br><br>
+            <a href="${linkUrl}" style="color:#c0392b;font-weight:bold;">${linkUrl}</a>
+          </p>`,
+        });
+      }
+
+      db.prepare(`UPDATE messages SET delivered = 1 WHERE id = ?`).run(row.id);
+      console.log(`Delivered message ${row.id} to ${row.recipient_value}`);
+    } catch (err) {
+      console.error(`Delivery failed for ${row.id}:`, err.message);
     }
   }
+}
 
-  async function submitPayment() {
-    const btn = document.getElementById('btn-pay');
-    btn.textContent = 'Sending...'; btn.disabled = true;
-    document.getElementById('card-errors').textContent = '';
-    try {
-      const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardElement } });
-      if (result.error) { document.getElementById('card-errors').textContent = result.error.message; }
-      else if (result.paymentIntent.status === 'succeeded') { goTo('screen-success'); }
-    } catch { document.getElementById('card-errors').textContent = 'Something went wrong. Please try again.'; }
-    finally { btn.textContent = 'Pay $1 & Send it'; btn.disabled = false; }
-  }
+// Check every 30 seconds
+setInterval(deliverPendingMessages, 30_000);
+deliverPendingMessages(); // run immediately on start
 
-  function resetAndStart() {
-    selectedKey = null; selectedText = null; clientSecret = null;
-    document.getElementById('recipient-input').value = '';
-    document.getElementById('error-recipient').textContent = '';
-    goTo('screen-choose');
-  }
-
-  function showMain() {
-    document.getElementById('screen-reveal').classList.remove('active');
-    document.getElementById('screen-error').classList.remove('active');
-    goTo('screen-choose');
-  }
-
-  async function checkRevealRoute() {
-    const match = window.location.pathname.match(/^\/m\/([a-f0-9-]{36})$/);
-    if (!match) return;
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    try {
-      const res = await fetch(`${API}/api/message/${match[1]}`);
-      const data = await res.json();
-      if (data.error) { document.getElementById('screen-error').classList.add('active'); return; }
-      document.getElementById('reveal-msg-text').textContent = data.fullText;
-      document.getElementById('screen-reveal').classList.add('active');
-    } catch { document.getElementById('screen-error').classList.add('active'); }
-  }
-
-  checkRevealRoute();
-</script>
-</body>
-</html>
+// ---------- Start ----------
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => console.log(`Server running on :${PORT}`));
