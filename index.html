@@ -4,521 +4,222 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>real friends</title>
-  <meta name="description" content="Sometimes love means saying the hard thing. $1 to send an anonymous uncomfortable truth." />
+  <meta name="description" content="Send a truth your friend needs to hear. Anonymously. $1." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
   <script src="https://js.stripe.com/v3/"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --ink: #1a1410;
-      --ink-soft: #5a4e44;
-      --ink-muted: #9a8c82;
-      --paper: #faf7f2;
-      --paper-warm: #f2ece1;
-      --paper-card: #fffdf9;
-      --red: #c0392b;
-      --red-soft: #e8d5d3;
-      --border: rgba(60,40,20,0.12);
-      --border-strong: rgba(60,40,20,0.28);
-      --sans: 'DM Mono', monospace;
-      --serif: 'EB Garamond', Georgia, serif;
+      --bg: #f5f3ef;
+      --card-bg: #ffffff;
+      --ink: #1c1a17;
+      --ink-soft: #6b6560;
+      --ink-muted: #a09990;
+      --border: rgba(28,26,23,0.10);
+      --border-hover: rgba(28,26,23,0.25);
+      --serif: 'Playfair Display', Georgia, serif;
+      --sans: 'Inter', system-ui, sans-serif;
     }
+    html { background: var(--bg); color: var(--ink); font-family: var(--sans); }
+    body { min-height: 100vh; }
 
-    html { background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 18px; }
-    body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    .page { max-width: 680px; margin: 0 auto; padding: 72px 24px 80px; }
+    .site-label { font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 48px; }
+    .headline { font-family: var(--serif); font-size: clamp(36px, 6vw, 58px); font-weight: 700; line-height: 1.1; color: var(--ink); margin-bottom: 16px; letter-spacing: -0.02em; }
+    .sub { font-family: var(--sans); font-size: 15px; font-weight: 300; color: var(--ink-soft); line-height: 1.7; margin-bottom: 56px; max-width: 400px; }
+    .message-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 48px; }
+    .msg-row { display: flex; align-items: center; justify-content: space-between; padding: 22px 28px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; gap: 16px; }
+    .msg-row:hover { border-color: var(--border-hover); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(28,26,23,0.07); }
+    .msg-text { font-family: var(--serif); font-size: 19px; font-style: italic; color: var(--ink); line-height: 1.3; }
+    .msg-arrow { font-size: 16px; color: var(--ink-muted); flex-shrink: 0; transition: transform 0.15s, color 0.15s; }
+    .msg-row:hover .msg-arrow { transform: translateX(3px); color: var(--ink); }
+    .footer-note { font-family: var(--sans); font-size: 12px; font-weight: 300; color: var(--ink-muted); }
 
-    /* ---- SCREENS ---- */
-    .screen { display: none; width: 100%; max-width: 580px; padding: 0 24px; flex-direction: column; min-height: 100vh; }
-    .screen.active { display: flex; }
-
-    /* ---- SHARED ---- */
-    .wordmark {
-      font-family: var(--serif);
-      font-size: 13px;
-      letter-spacing: 0.15em;
-      color: var(--ink-muted);
-      text-transform: lowercase;
-      padding: 32px 0 0;
-      text-align: center;
-    }
-    .wordmark span { color: var(--red); }
-
-    .tagline {
-      font-family: var(--serif);
-      font-style: italic;
-      font-size: 15px;
-      color: var(--ink-muted);
-      text-align: center;
-      margin-top: 6px;
-      margin-bottom: 48px;
-    }
-
-    h1 {
-      font-family: var(--serif);
-      font-weight: 400;
-      font-size: 32px;
-      line-height: 1.25;
-      margin-bottom: 12px;
-    }
-
-    .subhead {
-      font-family: var(--sans);
-      font-size: 12px;
-      color: var(--ink-muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 32px;
-    }
-
-    /* ---- CHOOSE MESSAGE ---- */
-    .message-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
-
-    .msg-card {
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 20px 24px;
-      cursor: pointer;
-      background: var(--paper-card);
-      transition: border-color 0.15s, background 0.15s;
-      position: relative;
-    }
-    .msg-card:hover { border-color: var(--border-strong); }
-    .msg-card.selected {
-      border-color: var(--red);
-      background: #fdf9f8;
-    }
-    .msg-card.selected::after {
-      content: '✓';
-      position: absolute;
-      right: 20px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-family: var(--sans);
-      font-size: 12px;
-      color: var(--red);
-    }
-
-    .msg-emoji { font-size: 22px; margin-bottom: 8px; }
-    .msg-title {
-      font-family: var(--serif);
-      font-size: 19px;
-      font-weight: 500;
-      color: var(--ink);
-      margin-bottom: 4px;
-    }
-    .msg-preview {
-      font-family: var(--serif);
-      font-style: italic;
-      font-size: 14px;
-      color: var(--ink-soft);
-      line-height: 1.5;
-    }
-
-    /* ---- RECIPIENT ---- */
-    .recipient-toggle {
-      display: flex;
-      gap: 0;
-      border: 1px solid var(--border-strong);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-bottom: 16px;
-      width: fit-content;
-    }
-    .toggle-btn {
-      padding: 9px 22px;
-      font-family: var(--sans);
-      font-size: 12px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--ink-muted);
-      transition: background 0.12s, color 0.12s;
-    }
-    .toggle-btn.active {
-      background: var(--ink);
-      color: var(--paper);
-    }
-
-    .text-input {
-      width: 100%;
-      padding: 14px 16px;
-      font-family: var(--serif);
-      font-size: 17px;
-      border: 1px solid var(--border-strong);
-      border-radius: 4px;
-      background: var(--paper-card);
-      color: var(--ink);
-      outline: none;
-      transition: border-color 0.15s;
-      margin-bottom: 32px;
-    }
-    .text-input:focus { border-color: var(--red); }
-    .text-input::placeholder { color: var(--ink-muted); font-style: italic; }
-
-    /* ---- BUTTON ---- */
-    .btn-primary {
-      width: 100%;
-      padding: 18px;
-      background: var(--ink);
-      color: var(--paper);
-      border: none;
-      border-radius: 4px;
-      font-family: var(--sans);
-      font-size: 13px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
-      margin-bottom: 16px;
-    }
-    .btn-primary:hover { background: #2d2420; }
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(28,26,23,0.45); backdrop-filter: blur(3px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal { background: var(--card-bg); border-radius: 16px; padding: 36px; width: 100%; max-width: 480px; position: relative; animation: slideUp 0.25s ease; box-shadow: 0 24px 80px rgba(28,26,23,0.18); }
+    @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-close { position: absolute; top: 16px; right: 20px; font-size: 22px; color: var(--ink-muted); cursor: pointer; background: none; border: none; line-height: 1; padding: 4px; transition: color 0.1s; }
+    .modal-close:hover { color: var(--ink); }
+    .modal-step { display: none; }
+    .modal-step.active { display: block; }
+    .modal-label { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 8px; }
+    .modal-selected-msg { font-family: var(--serif); font-size: 20px; font-style: italic; color: var(--ink); line-height: 1.4; padding: 16px 20px; background: var(--bg); border-radius: 8px; margin-bottom: 28px; }
+    .modal-field-label { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink-soft); margin-bottom: 8px; display: block; }
+    .recipient-toggle { display: flex; border: 1px solid var(--border-hover); border-radius: 6px; overflow: hidden; margin-bottom: 12px; width: fit-content; }
+    .toggle-btn { padding: 8px 20px; font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; background: none; border: none; cursor: pointer; color: var(--ink-muted); transition: background 0.12s, color 0.12s; }
+    .toggle-btn.active { background: var(--ink); color: white; }
+    .text-input { width: 100%; padding: 14px 16px; font-family: var(--sans); font-size: 15px; font-weight: 300; border: 1px solid var(--border-hover); border-radius: 8px; background: white; color: var(--ink); outline: none; transition: border-color 0.15s; margin-bottom: 8px; }
+    .text-input:focus { border-color: var(--ink); }
+    .text-input::placeholder { color: var(--ink-muted); }
+    .error-msg { font-family: var(--sans); font-size: 12px; color: #c0392b; min-height: 20px; margin-bottom: 16px; }
+    .modal-title { font-family: var(--serif); font-size: 26px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+    .modal-subtitle { font-family: var(--sans); font-size: 13px; font-weight: 300; color: var(--ink-soft); line-height: 1.5; margin-bottom: 28px; }
+    .confirm-row { background: var(--bg); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
+    .confirm-item { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
+    .confirm-item:last-child { margin-bottom: 0; }
+    .confirm-key { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-muted); }
+    .confirm-val { font-family: var(--serif); font-size: 16px; font-style: italic; color: var(--ink); }
+    .confirm-val.plain { font-family: var(--sans); font-size: 14px; font-style: normal; font-weight: 300; }
+    #card-element { padding: 14px 16px; border: 1px solid var(--border-hover); border-radius: 8px; background: white; margin-bottom: 8px; }
+    #card-errors { font-family: var(--sans); font-size: 12px; color: #c0392b; min-height: 18px; margin-bottom: 20px; }
+    .btn-primary { width: 100%; padding: 16px; background: var(--ink); color: white; border: none; border-radius: 8px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.15s, opacity 0.15s; margin-bottom: 12px; }
+    .btn-primary:hover { background: #2d2a25; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-back { width: 100%; background: none; border: none; font-family: var(--sans); font-size: 13px; font-weight: 300; color: var(--ink-muted); cursor: pointer; padding: 8px; transition: color 0.1s; }
+    .btn-back:hover { color: var(--ink); }
+    .success-icon { font-size: 36px; margin-bottom: 14px; }
+    .success-title { font-family: var(--serif); font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    .success-text { font-family: var(--sans); font-size: 14px; font-weight: 300; color: var(--ink-soft); line-height: 1.7; margin-bottom: 28px; }
 
-    .btn-ghost {
-      background: none;
-      border: 1px solid var(--border-strong);
-      color: var(--ink-soft);
-      width: 100%;
-      padding: 14px;
-      border-radius: 4px;
-      font-family: var(--sans);
-      font-size: 12px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: border-color 0.15s;
-      margin-bottom: 40px;
-    }
-    .btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
-
-    /* ---- PAYMENT ---- */
-    #card-element {
-      padding: 14px 16px;
-      border: 1px solid var(--border-strong);
-      border-radius: 4px;
-      background: var(--paper-card);
-      margin-bottom: 8px;
-    }
-    #card-errors {
-      font-family: var(--sans);
-      font-size: 12px;
-      color: var(--red);
-      min-height: 20px;
-      margin-bottom: 24px;
-    }
-
-    .price-line {
-      display: flex;
-      justify-content: space-between;
-      font-family: var(--sans);
-      font-size: 12px;
-      color: var(--ink-muted);
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .selected-msg-preview {
-      background: var(--paper-warm);
-      border-left: 2px solid var(--red);
-      padding: 16px 20px;
-      border-radius: 0 4px 4px 0;
-      margin-bottom: 28px;
-      font-style: italic;
-      font-size: 16px;
-      color: var(--ink-soft);
-      line-height: 1.55;
-    }
-
-    /* ---- CONFIRM / SUCCESS ---- */
-    .big-emoji { font-size: 48px; margin-bottom: 24px; }
-    .confirm-text {
-      font-family: var(--serif);
-      font-size: 20px;
-      line-height: 1.55;
-      color: var(--ink-soft);
-      margin-bottom: 40px;
-    }
-    .confirm-text strong { color: var(--ink); font-weight: 500; }
-
-    /* ---- MESSAGE REVEAL ---- */
-    .reveal-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding-top: 80px;
-    }
-    .reveal-from {
-      font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-      margin-bottom: 40px;
-    }
-    .reveal-message {
-      font-family: var(--serif);
-      font-size: 26px;
-      line-height: 1.6;
-      font-style: italic;
-      color: var(--ink);
-      max-width: 480px;
-      margin-bottom: 60px;
-    }
-    .reveal-divider {
-      width: 1px;
-      height: 60px;
-      background: var(--border-strong);
-      margin: 0 auto 48px;
-    }
-    .reveal-cta {
-      font-family: var(--serif);
-      font-size: 20px;
-      color: var(--ink-soft);
-      line-height: 1.5;
-      margin-bottom: 32px;
-      max-width: 400px;
-    }
-
-    /* ---- FOOTER ---- */
-    .footer {
-      margin-top: auto;
-      padding: 32px 0;
-      font-family: var(--sans);
-      font-size: 11px;
-      color: var(--ink-muted);
-      text-align: center;
-      letter-spacing: 0.06em;
-    }
-
-    /* ---- ERROR ---- */
-    .error-msg {
-      font-family: var(--sans);
-      font-size: 12px;
-      color: var(--red);
-      margin-bottom: 16px;
-    }
-
-    /* ---- LOADING ---- */
-    .loading-dots::after {
-      content: '...';
-      animation: dots 1.2s steps(4, end) infinite;
-    }
-    @keyframes dots {
-      0%, 100% { content: ''; }
-      33% { content: '.'; }
-      66% { content: '..'; }
-      100% { content: '...'; }
-    }
+    /* REVEAL */
+    .reveal-page { display: none; min-height: 100vh; background: var(--ink); color: white; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 60px 24px; }
+    .reveal-page.active { display: flex; }
+    .reveal-label { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 40px; }
+    .reveal-message { font-family: var(--serif); font-size: clamp(24px, 4vw, 36px); font-style: italic; line-height: 1.55; color: white; max-width: 520px; margin-bottom: 64px; }
+    .reveal-divider { width: 1px; height: 48px; background: rgba(255,255,255,0.15); margin: 0 auto 48px; }
+    .reveal-cta-text { font-family: var(--sans); font-size: 14px; font-weight: 300; color: rgba(255,255,255,0.45); line-height: 1.6; margin-bottom: 24px; max-width: 300px; }
+    .btn-reveal-cta { padding: 14px 36px; background: white; color: var(--ink); border: none; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s; }
+    .btn-reveal-cta:hover { opacity: 0.85; }
+    .error-page { display: none; min-height: 100vh; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 60px 24px; }
+    .error-page.active { display: flex; }
 
     @media (max-width: 480px) {
-      h1 { font-size: 26px; }
-      .reveal-message { font-size: 22px; }
+      .page { padding: 48px 20px 60px; }
+      .modal { padding: 28px 20px; }
+      .msg-text { font-size: 17px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ===================== SCREEN: CHOOSE MESSAGE ===================== -->
-<div id="screen-choose" class="screen active">
-  <div class="wordmark">real <span>friends</span></div>
-  <div class="tagline">the $1 truth you've been sitting on</div>
+<div class="page" id="main-page">
+  <div class="site-label">real friends</div>
+  <h1 class="headline">Send a truth your<br>friend needs to hear.</h1>
+  <p class="sub">Sometimes honesty is hard to say out loud. Send it anonymously. Free would make this spam — $1 keeps it real.</p>
 
-  <h1>What do you need to say?</h1>
-  <p class="subhead">choose one</p>
-
-  <div class="message-cards">
-    <div class="msg-card" data-key="so" onclick="selectMessage('so')">
-      <div class="msg-emoji">💔</div>
-      <div class="msg-title">I don't like your significant other</div>
-      <div class="msg-preview">"I care about you too much to keep pretending..."</div>
+  <div class="message-list">
+    <div class="msg-row" onclick="selectMessage('boyfriend', &quot;I don't like your boyfriend.&quot;)">
+      <span class="msg-text">I don't like your boyfriend.</span>
+      <span class="msg-arrow">→</span>
     </div>
-    <div class="msg-card" data-key="proud" onclick="selectMessage('proud')">
-      <div class="msg-emoji">🤍</div>
-      <div class="msg-title">I'm proud of you</div>
-      <div class="msg-preview">"Not for the obvious stuff. For the quiet hard things..."</div>
+    <div class="msg-row" onclick="selectMessage('girlfriend', &quot;I don't like your girlfriend.&quot;)">
+      <span class="msg-text">I don't like your girlfriend.</span>
+      <span class="msg-arrow">→</span>
     </div>
-    <div class="msg-card" data-key="sorry" onclick="selectMessage('sorry')">
-      <div class="msg-emoji">🕊️</div>
-      <div class="msg-title">I'm sorry I wasn't there</div>
-      <div class="msg-preview">"I wasn't there the way I should have been..."</div>
+    <div class="msg-row" onclick="selectMessage('talking', &quot;Someone's talking behind your back.&quot;)">
+      <span class="msg-text">Someone's talking behind your back.</span>
+      <span class="msg-arrow">→</span>
+    </div>
+    <div class="msg-row" onclick="selectMessage('wants', &quot;Someone wants you. Badly.&quot;)">
+      <span class="msg-text">Someone wants you. Badly.</span>
+      <span class="msg-arrow">→</span>
     </div>
   </div>
 
-  <button class="btn-primary" onclick="goToRecipient()" id="btn-next-1" disabled>
-    Continue
-  </button>
-
-  <div class="footer">anonymous · delivered within 4 hours · $1</div>
+  <p class="footer-note">anonymous · delivered within 4 hours · $1</p>
 </div>
 
-<!-- ===================== SCREEN: RECIPIENT ===================== -->
-<div id="screen-recipient" class="screen">
-  <div class="wordmark">real <span>friends</span></div>
-  <div class="tagline" style="margin-bottom:40px"></div>
+<div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
 
-  <h1>Who needs to hear this?</h1>
-  <p class="subhead">they won't know it's you</p>
+    <div class="modal-step active" id="step-recipient">
+      <div class="modal-label">Selected truth</div>
+      <div class="modal-selected-msg" id="modal-msg-preview"></div>
+      <label class="modal-field-label">Send to</label>
+      <div class="recipient-toggle">
+        <button class="toggle-btn active" id="toggle-phone" onclick="setRecipientType('phone')">Phone</button>
+        <button class="toggle-btn" id="toggle-email" onclick="setRecipientType('email')">Email</button>
+      </div>
+      <input type="tel" id="recipient-input" class="text-input" placeholder="+1 (555) 000-0000" autocomplete="off" />
+      <div class="error-msg" id="error-recipient"></div>
+      <button class="btn-primary" onclick="goToPayment()">Continue</button>
+      <button class="btn-back" onclick="closeModal()">Cancel</button>
+    </div>
 
-  <div class="recipient-toggle">
-    <button class="toggle-btn active" id="toggle-phone" onclick="setRecipientType('phone')">Phone</button>
-    <button class="toggle-btn" id="toggle-email" onclick="setRecipientType('email')">Email</button>
-  </div>
+    <div class="modal-step" id="step-payment">
+      <div class="modal-title">Send anonymously for $1</div>
+      <div class="modal-subtitle">Keeps it intentional.</div>
+      <div class="confirm-row">
+        <div class="confirm-item">
+          <span class="confirm-key">Sending to</span>
+          <span class="confirm-val plain" id="confirm-recipient"></span>
+        </div>
+        <div class="confirm-item">
+          <span class="confirm-key">Message</span>
+          <span class="confirm-val" id="confirm-message"></span>
+        </div>
+      </div>
+      <div id="card-element"></div>
+      <div id="card-errors"></div>
+      <button class="btn-primary" id="btn-pay" onclick="submitPayment()">Pay $1 & Send</button>
+      <button class="btn-back" onclick="showStep('step-recipient')">← Back</button>
+    </div>
 
-  <input
-    type="tel"
-    id="recipient-input"
-    class="text-input"
-    placeholder="+1 (555) 000-0000"
-    autocomplete="off"
-  />
-
-  <div id="error-recipient" class="error-msg"></div>
-
-  <button class="btn-primary" onclick="goToPayment()">
-    Continue to Pay $1
-  </button>
-  <button class="btn-ghost" onclick="goTo('screen-choose')">← Back</button>
-
-  <div class="footer">they'll receive a text or email. no sender info.</div>
-</div>
-
-<!-- ===================== SCREEN: PAYMENT ===================== -->
-<div id="screen-payment" class="screen">
-  <div class="wordmark">real <span>friends</span></div>
-  <div style="margin-bottom: 40px"></div>
-
-  <h1>One dollar.<br>Worth it.</h1>
-  <div style="margin-bottom: 24px"></div>
-
-  <div class="selected-msg-preview" id="payment-preview"></div>
-
-  <div class="price-line">
-    <span>Real Friends message</span>
-    <span>$1.00</span>
-  </div>
-
-  <div id="card-element"></div>
-  <div id="card-errors"></div>
-
-  <button class="btn-primary" id="btn-pay" onclick="submitPayment()">
-    Send it — $1
-  </button>
-  <button class="btn-ghost" onclick="goTo('screen-recipient')">← Back</button>
-
-  <div class="footer">secured by Stripe · we never store card details</div>
-</div>
-
-<!-- ===================== SCREEN: SUCCESS ===================== -->
-<div id="screen-success" class="screen">
-  <div class="wordmark">real <span>friends</span></div>
-  <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px 0;">
-    <div class="big-emoji" id="success-emoji">💔</div>
-    <h1 style="margin-bottom: 20px;">Sent.</h1>
-    <p class="confirm-text">
-      Your message is on its way.<br />
-      They'll receive it <strong>sometime in the next 4 hours.</strong><br /><br />
-      No sender. No explanation. Just the truth.
-    </p>
-  </div>
-  <div class="footer">real friends · realfriends.us</div>
-</div>
-
-<!-- ===================== SCREEN: MESSAGE REVEAL ===================== -->
-<div id="screen-reveal" class="screen">
-  <div class="wordmark">real <span>friends</span></div>
-  <div class="reveal-container">
-    <p class="reveal-from">a real friend has something to say</p>
-    <div class="reveal-message" id="reveal-message-text"></div>
-    <div class="reveal-divider"></div>
-    <p class="reveal-cta">
-      Have something to get off your chest?<br />
-      <em>It costs $1. It might mean everything.</em>
-    </p>
-    <button class="btn-primary" style="max-width: 320px;" onclick="goTo('screen-choose')">
-      Send something real
-    </button>
-  </div>
-  <div class="footer">real friends · realfriends.us</div>
-</div>
-
-<!-- ===================== SCREEN: ERROR ===================== -->
-<div id="screen-error" class="screen">
-  <div class="wordmark">real <span>friends</span></div>
-  <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-    <div class="big-emoji">🕯️</div>
-    <h1 style="margin-bottom: 16px;">Couldn't find that.</h1>
-    <p class="confirm-text">This link may have expired or been mistyped.</p>
-    <button class="btn-ghost" style="max-width:300px" onclick="goTo('screen-choose')">Send your own message</button>
+    <div class="modal-step" id="step-success">
+      <div style="text-align:center;padding:12px 0;">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Sent.</div>
+        <p class="success-text">Your message is on its way.<br>They'll receive it sometime in the next 4 hours.<br>No sender. No explanation. Just the truth.</p>
+        <button class="btn-primary" onclick="closeModal();resetForm();">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
+<div class="reveal-page" id="reveal-page">
+  <p class="reveal-label">a real friend has something to say</p>
+  <div class="reveal-message" id="reveal-message-text">Loading...</div>
+  <div class="reveal-divider"></div>
+  <p class="reveal-cta-text">Have something to get off your chest?<br>It costs $1. It might mean everything.</p>
+  <button class="btn-reveal-cta" onclick="goToMain()">Send something real</button>
+</div>
+
+<div class="error-page" id="error-page">
+  <div class="site-label" style="margin-bottom:24px">real friends</div>
+  <h1 class="headline" style="font-size:32px;margin-bottom:12px;">Couldn't find that.</h1>
+  <p class="sub" style="margin-bottom:32px">This link may have expired or been mistyped.</p>
+  <button class="btn-primary" style="max-width:280px;margin:0 auto;" onclick="goToMain()">Send your own message</button>
+</div>
 
 <script>
-  const API = 'https://api.realfriends.us'; // change to http://localhost:4000 for local dev
-  const stripe = Stripe('pk_live_51TBnfY9stkAL9xb5FD4aol1slcGrIHZxCm9rZucFNYPc0aw6FpzwKelTtPYTZB8YSUn7m8dUkDOVWs4WrAZwxheV00fWAUYIvV'); // TODO: replace
+  const API = 'https://api.realfriends.us';
+  const stripe = Stripe('pk_live_51TBnfY9stkAL9xb5FD4aol1slcGrIHZxCm9rZucFNYPc0aw6FpzwKelTtPYTZB8YSUn7m8dUkDOVWs4WrAZwxheV00fWAUYIvV');
   const elements = stripe.elements();
   const cardElement = elements.create('card', {
     style: {
-      base: {
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: '17px',
-        color: '#1a1410',
-        '::placeholder': { color: '#9a8c82' }
-      },
+      base: { fontFamily: "'Inter', system-ui, sans-serif", fontSize: '15px', fontWeight: '300', color: '#1c1a17', '::placeholder': { color: '#a09990' } },
       invalid: { color: '#c0392b' }
     }
   });
 
-  let selectedMessage = null;
-  let recipientType = 'phone';
-  let clientSecret = null;
-  let pendingId = null;
-  let cardMounted = false;
+  let selectedKey = null, selectedText = null, recipientType = 'phone', clientSecret = null, cardMounted = false;
 
-  const MESSAGES = {
-    so:    { emoji: '💔', preview: "I care about you too much to keep pretending. Something feels off, and I think you deserve to know that someone who loves you sees it." },
-    proud: { emoji: '🤍', preview: "I don't say this enough — I'm genuinely proud of you. Not for the obvious stuff. For the quiet hard things you do that most people never notice." },
-    sorry: { emoji: '🕊️', preview: "I wasn't there for you the way I should have been, and I think about it more than you know. I just want you to know I see it, and I'm sorry." }
-  };
-
-  // ---- Routing ----
-  function goTo(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(screenId).classList.add('active');
-    window.scrollTo(0, 0);
+  function selectMessage(key, text) {
+    selectedKey = key; selectedText = text;
+    document.getElementById('modal-msg-preview').textContent = text;
+    document.getElementById('confirm-message').textContent = text;
+    showStep('step-recipient');
+    openModal();
   }
 
-  function selectMessage(key) {
-    selectedMessage = key;
-    document.querySelectorAll('.msg-card').forEach(c => c.classList.remove('selected'));
-    document.querySelector(`.msg-card[data-key="${key}"]`).classList.add('selected');
-    document.getElementById('btn-next-1').disabled = false;
-  }
+  function openModal() { document.getElementById('modal-overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); document.body.style.overflow = ''; }
+  function handleOverlayClick(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+  function showStep(id) { document.querySelectorAll('.modal-step').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
   function setRecipientType(type) {
     recipientType = type;
     const input = document.getElementById('recipient-input');
     document.getElementById('toggle-phone').classList.toggle('active', type === 'phone');
     document.getElementById('toggle-email').classList.toggle('active', type === 'email');
-    if (type === 'phone') {
-      input.type = 'tel';
-      input.placeholder = '+1 (555) 000-0000';
-    } else {
-      input.type = 'email';
-      input.placeholder = 'friend@example.com';
-    }
+    input.type = type === 'phone' ? 'tel' : 'email';
+    input.placeholder = type === 'phone' ? '+1 (555) 000-0000' : 'friend@example.com';
     input.value = '';
-  }
-
-  function goToRecipient() {
-    if (!selectedMessage) return;
-    goTo('screen-recipient');
   }
 
   async function goToPayment() {
@@ -526,101 +227,67 @@
     const value = input.value.trim();
     const errEl = document.getElementById('error-recipient');
     errEl.textContent = '';
+    if (!value) { errEl.textContent = recipientType === 'phone' ? 'Enter a phone number.' : 'Enter an email address.'; return; }
+    if (recipientType === 'email' && !value.includes('@')) { errEl.textContent = "That doesn't look like a valid email."; return; }
 
-    if (!value) {
-      errEl.textContent = recipientType === 'phone' ? 'Enter a phone number.' : 'Enter an email address.';
-      return;
-    }
-
-    // Basic validation
-    if (recipientType === 'email' && !value.includes('@')) {
-      errEl.textContent = 'That doesn\'t look like a valid email.';
-      return;
-    }
-
-    const btn = document.querySelector('#screen-recipient .btn-primary');
-    btn.textContent = 'Setting up...';
-    btn.disabled = true;
+    const btn = document.querySelector('#step-recipient .btn-primary');
+    btn.textContent = 'Setting up...'; btn.disabled = true;
 
     try {
       const res = await fetch(`${API}/api/create-payment-intent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageKey: selectedMessage, recipientType, recipientValue: value })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageKey: selectedKey, recipientType, recipientValue: value })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
       clientSecret = data.clientSecret;
-      pendingId = data.pendingId;
-
-      // Mount Stripe card
-      document.getElementById('payment-preview').textContent = MESSAGES[selectedMessage].preview;
-      goTo('screen-payment');
-
+      document.getElementById('confirm-recipient').textContent = value;
+      showStep('step-payment');
       if (!cardMounted) {
         cardElement.mount('#card-element');
-        cardElement.on('change', (e) => {
-          document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
-        });
+        cardElement.on('change', e => { document.getElementById('card-errors').textContent = e.error ? e.error.message : ''; });
         cardMounted = true;
       }
     } catch (err) {
       errEl.textContent = err.message || 'Something went wrong. Try again.';
     } finally {
-      btn.textContent = 'Continue to Pay $1';
-      btn.disabled = false;
+      btn.textContent = 'Continue'; btn.disabled = false;
     }
   }
 
   async function submitPayment() {
     const btn = document.getElementById('btn-pay');
-    btn.textContent = 'Sending...';
-    btn.disabled = true;
+    btn.textContent = 'Sending...'; btn.disabled = true;
     document.getElementById('card-errors').textContent = '';
-
     try {
-      const result = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: { card: cardElement }
-      });
-
-      if (result.error) {
-        document.getElementById('card-errors').textContent = result.error.message;
-      } else if (result.paymentIntent.status === 'succeeded') {
-        document.getElementById('success-emoji').textContent = MESSAGES[selectedMessage].emoji;
-        goTo('screen-success');
-      }
+      const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardElement } });
+      if (result.error) { document.getElementById('card-errors').textContent = result.error.message; }
+      else if (result.paymentIntent.status === 'succeeded') { showStep('step-success'); }
     } catch (err) {
       document.getElementById('card-errors').textContent = 'Something went wrong. Please try again.';
     } finally {
-      btn.textContent = 'Send it — $1';
-      btn.disabled = false;
+      btn.textContent = 'Pay $1 & Send'; btn.disabled = false;
     }
   }
 
-  // ---- Message reveal (receiver opens /m/:id) ----
-  async function loadRevealMessage() {
+  function resetForm() { selectedKey = null; selectedText = null; clientSecret = null; document.getElementById('recipient-input').value = ''; document.getElementById('error-recipient').textContent = ''; showStep('step-recipient'); }
+
+  function goToMain() { document.getElementById('reveal-page').classList.remove('active'); document.getElementById('error-page').classList.remove('active'); document.getElementById('main-page').style.display = 'block'; }
+
+  async function checkRevealRoute() {
     const match = window.location.pathname.match(/^\/m\/([a-f0-9-]{36})$/);
     if (!match) return;
-
-    goTo('screen-reveal');
-    const id = match[1];
-
+    document.getElementById('main-page').style.display = 'none';
     try {
-      const res = await fetch(`${API}/api/message/${id}`);
+      const res = await fetch(`${API}/api/message/${match[1]}`);
       const data = await res.json();
-      if (data.error) {
-        goTo('screen-error');
-        return;
-      }
+      if (data.error) { document.getElementById('error-page').classList.add('active'); return; }
       document.getElementById('reveal-message-text').textContent = data.fullText;
-    } catch {
-      goTo('screen-error');
-    }
+      document.getElementById('reveal-page').classList.add('active');
+    } catch { document.getElementById('error-page').classList.add('active'); }
   }
 
-  // ---- Init ----
-  loadRevealMessage();
+  checkRevealRoute();
 </script>
 </body>
 </html>
