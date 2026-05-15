@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>real friends</title>
+  <meta name="description" content="Sometimes love means saying the hard thing. $1 to send an anonymous uncomfortable truth." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #1a1410;
+      --ink-soft: #5a4e44;
+      --ink-muted: #9a8c82;
+      --paper: #faf7f2;
+      --paper-warm: #f2ece1;
+      --paper-card: #fffdf9;
+      --red: #c0392b;
+      --red-soft: #e8d5d3;
+      --border: rgba(60,40,20,0.12);
+      --border-strong: rgba(60,40,20,0.28);
+      --sans: 'DM Mono', monospace;
+      --serif: 'EB Garamond', Georgia, serif;
+    }
+
+    html { background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 18px; }
+    body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+    /* ---- SCREENS ---- */
+    .screen { display: none; width: 100%; max-width: 580px; padding: 0 24px; flex-direction: column; min-height: 100vh; }
+    .screen.active { display: flex; }
+
+    /* ---- SHARED ---- */
+    .wordmark {
+      font-family: var(--serif);
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      color: var(--ink-muted);
+      text-transform: lowercase;
+      padding: 32px 0 0;
+      text-align: center;
+    }
+    .wordmark span { color: var(--red); }
+
+    .tagline {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 15px;
+      color: var(--ink-muted);
+      text-align: center;
+      margin-top: 6px;
+      margin-bottom: 48px;
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 32px;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+
+    .subhead {
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--ink-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    /* ---- CHOOSE MESSAGE ---- */
+    .message-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
+
+    .msg-card {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 20px 24px;
+      cursor: pointer;
+      background: var(--paper-card);
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .msg-card:hover { border-color: var(--border-strong); }
+    .msg-card.selected {
+      border-color: var(--red);
+      background: #fdf9f8;
+    }
+    .msg-card.selected::after {
+      content: '✓';
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--red);
+    }
+
+    .msg-emoji { font-size: 22px; margin-bottom: 8px; }
+    .msg-title {
+      font-family: var(--serif);
+      font-size: 19px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .msg-preview {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+
+    /* ---- RECIPIENT ---- */
+    .recipient-toggle {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      width: fit-content;
+    }
+    .toggle-btn {
+      padding: 9px 22px;
+      font-family: var(--sans);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-muted);
+      transition: background 0.12s, color 0.12s;
+    }
+    .toggle-btn.active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .text-input {
+      width: 100%;
+      padding: 14px 16px;
+      font-family: var(--serif);
+      font-size: 17px;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      background: var(--paper-card);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 32px;
+    }
+    .text-input:focus { border-color: var(--red); }
+    .text-input::placeholder { color: var(--ink-muted); font-style: italic; }
+
+    /* ---- BUTTON ---- */
+    .btn-primary {
+      width: 100%;
+      padding: 18px;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      border-radius: 4px;
+      font-family: var(--sans);
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      margin-bottom: 16px;
+    }
+    .btn-primary:hover { background: #2d2420; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: none;
+      border: 1px solid var(--border-strong);
+      color: var(--ink-soft);
+      width: 100%;
+      padding: 14px;
+      border-radius: 4px;
+      font-family: var(--sans);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      margin-bottom: 40px;
+    }
+    .btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+
+    /* ---- PAYMENT ---- */
+    #card-element {
+      padding: 14px 16px;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      background: var(--paper-card);
+      margin-bottom: 8px;
+    }
+    #card-errors {
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--red);
+      min-height: 20px;
+      margin-bottom: 24px;
+    }
+
+    .price-line {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .selected-msg-preview {
+      background: var(--paper-warm);
+      border-left: 2px solid var(--red);
+      padding: 16px 20px;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 28px;
+      font-style: italic;
+      font-size: 16px;
+      color: var(--ink-soft);
+      line-height: 1.55;
+    }
+
+    /* ---- CONFIRM / SUCCESS ---- */
+    .big-emoji { font-size: 48px; margin-bottom: 24px; }
+    .confirm-text {
+      font-family: var(--serif);
+      font-size: 20px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      margin-bottom: 40px;
+    }
+    .confirm-text strong { color: var(--ink); font-weight: 500; }
+
+    /* ---- MESSAGE REVEAL ---- */
+    .reveal-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding-top: 80px;
+    }
+    .reveal-from {
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 40px;
+    }
+    .reveal-message {
+      font-family: var(--serif);
+      font-size: 26px;
+      line-height: 1.6;
+      font-style: italic;
+      color: var(--ink);
+      max-width: 480px;
+      margin-bottom: 60px;
+    }
+    .reveal-divider {
+      width: 1px;
+      height: 60px;
+      background: var(--border-strong);
+      margin: 0 auto 48px;
+    }
+    .reveal-cta {
+      font-family: var(--serif);
+      font-size: 20px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+      margin-bottom: 32px;
+      max-width: 400px;
+    }
+
+    /* ---- FOOTER ---- */
+    .footer {
+      margin-top: auto;
+      padding: 32px 0;
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--ink-muted);
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+
+    /* ---- ERROR ---- */
+    .error-msg {
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--red);
+      margin-bottom: 16px;
+    }
+
+    /* ---- LOADING ---- */
+    .loading-dots::after {
+      content: '...';
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%, 100% { content: ''; }
+      33% { content: '.'; }
+      66% { content: '..'; }
+      100% { content: '...'; }
+    }
+
+    @media (max-width: 480px) {
+      h1 { font-size: 26px; }
+      .reveal-message { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===================== SCREEN: CHOOSE MESSAGE ===================== -->
+<div id="screen-choose" class="screen active">
+  <div class="wordmark">real <span>friends</span></div>
+  <div class="tagline">the $1 truth you've been sitting on</div>
+
+  <h1>What do you need to say?</h1>
+  <p class="subhead">choose one</p>
+
+  <div class="message-cards">
+    <div class="msg-card" data-key="so" onclick="selectMessage('so')">
+      <div class="msg-emoji">💔</div>
+      <div class="msg-title">I don't like your significant other</div>
+      <div class="msg-preview">"I care about you too much to keep pretending..."</div>
+    </div>
+    <div class="msg-card" data-key="proud" onclick="selectMessage('proud')">
+      <div class="msg-emoji">🤍</div>
+      <div class="msg-title">I'm proud of you</div>
+      <div class="msg-preview">"Not for the obvious stuff. For the quiet hard things..."</div>
+    </div>
+    <div class="msg-card" data-key="sorry" onclick="selectMessage('sorry')">
+      <div class="msg-emoji">🕊️</div>
+      <div class="msg-title">I'm sorry I wasn't there</div>
+      <div class="msg-preview">"I wasn't there the way I should have been..."</div>
+    </div>
+  </div>
+
+  <button class="btn-primary" onclick="goToRecipient()" id="btn-next-1" disabled>
+    Continue
+  </button>
+
+  <div class="footer">anonymous · delivered within 4 hours · $1</div>
+</div>
+
+<!-- ===================== SCREEN: RECIPIENT ===================== -->
+<div id="screen-recipient" class="screen">
+  <div class="wordmark">real <span>friends</span></div>
+  <div class="tagline" style="margin-bottom:40px"></div>
+
+  <h1>Who needs to hear this?</h1>
+  <p class="subhead">they won't know it's you</p>
+
+  <div class="recipient-toggle">
+    <button class="toggle-btn active" id="toggle-phone" onclick="setRecipientType('phone')">Phone</button>
+    <button class="toggle-btn" id="toggle-email" onclick="setRecipientType('email')">Email</button>
+  </div>
+
+  <input
+    type="tel"
+    id="recipient-input"
+    class="text-input"
+    placeholder="+1 (555) 000-0000"
+    autocomplete="off"
+  />
+
+  <div id="error-recipient" class="error-msg"></div>
+
+  <button class="btn-primary" onclick="goToPayment()">
+    Continue to Pay $1
+  </button>
+  <button class="btn-ghost" onclick="goTo('screen-choose')">← Back</button>
+
+  <div class="footer">they'll receive a text or email. no sender info.</div>
+</div>
+
+<!-- ===================== SCREEN: PAYMENT ===================== -->
+<div id="screen-payment" class="screen">
+  <div class="wordmark">real <span>friends</span></div>
+  <div style="margin-bottom: 40px"></div>
+
+  <h1>One dollar.<br>Worth it.</h1>
+  <div style="margin-bottom: 24px"></div>
+
+  <div class="selected-msg-preview" id="payment-preview"></div>
+
+  <div class="price-line">
+    <span>Real Friends message</span>
+    <span>$1.00</span>
+  </div>
+
+  <div id="card-element"></div>
+  <div id="card-errors"></div>
+
+  <button class="btn-primary" id="btn-pay" onclick="submitPayment()">
+    Send it — $1
+  </button>
+  <button class="btn-ghost" onclick="goTo('screen-recipient')">← Back</button>
+
+  <div class="footer">secured by Stripe · we never store card details</div>
+</div>
+
+<!-- ===================== SCREEN: SUCCESS ===================== -->
+<div id="screen-success" class="screen">
+  <div class="wordmark">real <span>friends</span></div>
+  <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px 0;">
+    <div class="big-emoji" id="success-emoji">💔</div>
+    <h1 style="margin-bottom: 20px;">Sent.</h1>
+    <p class="confirm-text">
+      Your message is on its way.<br />
+      They'll receive it <strong>sometime in the next 4 hours.</strong><br /><br />
+      No sender. No explanation. Just the truth.
+    </p>
+  </div>
+  <div class="footer">real friends · realfriends.us</div>
+</div>
+
+<!-- ===================== SCREEN: MESSAGE REVEAL ===================== -->
+<div id="screen-reveal" class="screen">
+  <div class="wordmark">real <span>friends</span></div>
+  <div class="reveal-container">
+    <p class="reveal-from">a real friend has something to say</p>
+    <div class="reveal-message" id="reveal-message-text"></div>
+    <div class="reveal-divider"></div>
+    <p class="reveal-cta">
+      Have something to get off your chest?<br />
+      <em>It costs $1. It might mean everything.</em>
+    </p>
+    <button class="btn-primary" style="max-width: 320px;" onclick="goTo('screen-choose')">
+      Send something real
+    </button>
+  </div>
+  <div class="footer">real friends · realfriends.us</div>
+</div>
+
+<!-- ===================== SCREEN: ERROR ===================== -->
+<div id="screen-error" class="screen">
+  <div class="wordmark">real <span>friends</span></div>
+  <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+    <div class="big-emoji">🕯️</div>
+    <h1 style="margin-bottom: 16px;">Couldn't find that.</h1>
+    <p class="confirm-text">This link may have expired or been mistyped.</p>
+    <button class="btn-ghost" style="max-width:300px" onclick="goTo('screen-choose')">Send your own message</button>
+  </div>
+</div>
+
+
+<script>
+  const API = 'https://api.realfriends.us'; // change to http://localhost:4000 for local dev
+  const stripe = Stripe('pk_live_51TBnfY9stkAL9xb5FD4aol1slcGrIHZxCm9rZucFNYPc0aw6FpzwKelTtPYTZB8YSUn7m8dUkDOVWs4WrAZwxheV00fWAUYIvV'); // TODO: replace
+  const elements = stripe.elements();
+  const cardElement = elements.create('card', {
+    style: {
+      base: {
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: '17px',
+        color: '#1a1410',
+        '::placeholder': { color: '#9a8c82' }
+      },
+      invalid: { color: '#c0392b' }
+    }
+  });
+
+  let selectedMessage = null;
+  let recipientType = 'phone';
+  let clientSecret = null;
+  let pendingId = null;
+  let cardMounted = false;
+
+  const MESSAGES = {
+    so:    { emoji: '💔', preview: "I care about you too much to keep pretending. Something feels off, and I think you deserve to know that someone who loves you sees it." },
+    proud: { emoji: '🤍', preview: "I don't say this enough — I'm genuinely proud of you. Not for the obvious stuff. For the quiet hard things you do that most people never notice." },
+    sorry: { emoji: '🕊️', preview: "I wasn't there for you the way I should have been, and I think about it more than you know. I just want you to know I see it, and I'm sorry." }
+  };
+
+  // ---- Routing ----
+  function goTo(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  function selectMessage(key) {
+    selectedMessage = key;
+    document.querySelectorAll('.msg-card').forEach(c => c.classList.remove('selected'));
+    document.querySelector(`.msg-card[data-key="${key}"]`).classList.add('selected');
+    document.getElementById('btn-next-1').disabled = false;
+  }
+
+  function setRecipientType(type) {
+    recipientType = type;
+    const input = document.getElementById('recipient-input');
+    document.getElementById('toggle-phone').classList.toggle('active', type === 'phone');
+    document.getElementById('toggle-email').classList.toggle('active', type === 'email');
+    if (type === 'phone') {
+      input.type = 'tel';
+      input.placeholder = '+1 (555) 000-0000';
+    } else {
+      input.type = 'email';
+      input.placeholder = 'friend@example.com';
+    }
+    input.value = '';
+  }
+
+  function goToRecipient() {
+    if (!selectedMessage) return;
+    goTo('screen-recipient');
+  }
+
+  async function goToPayment() {
+    const input = document.getElementById('recipient-input');
+    const value = input.value.trim();
+    const errEl = document.getElementById('error-recipient');
+    errEl.textContent = '';
+
+    if (!value) {
+      errEl.textContent = recipientType === 'phone' ? 'Enter a phone number.' : 'Enter an email address.';
+      return;
+    }
+
+    // Basic validation
+    if (recipientType === 'email' && !value.includes('@')) {
+      errEl.textContent = 'That doesn\'t look like a valid email.';
+      return;
+    }
+
+    const btn = document.querySelector('#screen-recipient .btn-primary');
+    btn.textContent = 'Setting up...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API}/api/create-payment-intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageKey: selectedMessage, recipientType, recipientValue: value })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      clientSecret = data.clientSecret;
+      pendingId = data.pendingId;
+
+      // Mount Stripe card
+      document.getElementById('payment-preview').textContent = MESSAGES[selectedMessage].preview;
+      goTo('screen-payment');
+
+      if (!cardMounted) {
+        cardElement.mount('#card-element');
+        cardElement.on('change', (e) => {
+          document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+        });
+        cardMounted = true;
+      }
+    } catch (err) {
+      errEl.textContent = err.message || 'Something went wrong. Try again.';
+    } finally {
+      btn.textContent = 'Continue to Pay $1';
+      btn.disabled = false;
+    }
+  }
+
+  async function submitPayment() {
+    const btn = document.getElementById('btn-pay');
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
+    document.getElementById('card-errors').textContent = '';
+
+    try {
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card: cardElement }
+      });
+
+      if (result.error) {
+        document.getElementById('card-errors').textContent = result.error.message;
+      } else if (result.paymentIntent.status === 'succeeded') {
+        document.getElementById('success-emoji').textContent = MESSAGES[selectedMessage].emoji;
+        goTo('screen-success');
+      }
+    } catch (err) {
+      document.getElementById('card-errors').textContent = 'Something went wrong. Please try again.';
+    } finally {
+      btn.textContent = 'Send it — $1';
+      btn.disabled = false;
+    }
+  }
+
+  // ---- Message reveal (receiver opens /m/:id) ----
+  async function loadRevealMessage() {
+    const match = window.location.pathname.match(/^\/m\/([a-f0-9-]{36})$/);
+    if (!match) return;
+
+    goTo('screen-reveal');
+    const id = match[1];
+
+    try {
+      const res = await fetch(`${API}/api/message/${id}`);
+      const data = await res.json();
+      if (data.error) {
+        goTo('screen-error');
+        return;
+      }
+      document.getElementById('reveal-message-text').textContent = data.fullText;
+    } catch {
+      goTo('screen-error');
+    }
+  }
+
+  // ---- Init ----
+  loadRevealMessage();
+</script>
+</body>
+</html>
